@@ -1,11 +1,12 @@
 # JSON
 
-This is an implementation for the [Serialize](https://github.com/RogueMacro/serialize) framework for Beef.
+JSON implementation for the [Serialize](https://github.com/RogueMacro/serialize) framework for Beef.
 
 ## Usage
 
 ```cs
 using Serialize;
+using Json;
 
 [Serializable]
 struct Point

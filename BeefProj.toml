@@ -1,0 +1,11 @@
+FileVersion = 1
+
+[Dependencies]
+Serialize = "*"
+corlib = "*"
+
+[Project]
+Name = "Json"
+TargetType = "BeefLib"
+StartupObject = "Json.Program"
+ProcessorMacros = []

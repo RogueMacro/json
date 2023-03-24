@@ -1,7 +1,7 @@
 [Package]
 Name = "Json"
 Version = "0.1.0"
-Description = ""
+Description = "JSON implementation for the Serialize framework for Beef."
 
 [Dependencies]
-Serialize = { Path = "../Serialize" }
+Serialize = "0.1.0"

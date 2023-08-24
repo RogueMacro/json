@@ -4,4 +4,4 @@ Version = "0.1.1"
 Description = "JSON serialization format"
 
 [Dependencies]
-Serialize = "0.1.6"
+Serialize = "0.1.7"

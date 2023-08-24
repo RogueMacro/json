@@ -28,7 +28,7 @@ namespace Json
 		public static Result<void> Serialize<T>(T value, String strBuffer, bool pretty = false)
 			where T : ISerializable
 		{
-			Serialize<Json> serializer = scope .(scope .() { Pretty = pretty });
+			Serializer<Json> serializer = scope .(scope .() { Pretty = pretty });
 			return serializer.Serialize(value, strBuffer);
 		}
 	}

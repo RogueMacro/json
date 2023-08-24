@@ -12,41 +12,29 @@ namespace Json.Internal
 
 		public DeserializeError Error { get; set; } ~ if (_ != null) delete _;
 
+		public void SetError(DeserializeError error)
+		{
+			if (Error != null)
+				delete Error;
+			Error = error;
+		}
+
+		public void PushState() {}
+		public void PopState() {}
+
 		public Result<void> DeserializeStructStart(int size)
 		{
 			return (.)ConsumeChar('{');
 		}
 
-		public Result<void> DeserializeStructField(
-			delegate Result<void, FieldDeserializeError>(StringView field) assign,
+		public Result<void, FieldDeserializeError> DeserializeStructField(
+			delegate Result<void, FieldDeserializeError>(StringView field) deserialize,
 			Span<StringView> fieldsLeft,
 			bool first)
 		{
 			Try!(ConsumeWhitespace());
 			if (Try!(Peek()) == '}')
-			{
-				if (fieldsLeft.Length > 0)
-				{
-					String message = new .();
-					if (fieldsLeft.Length == 1)
-						message.Append("Missing field ");
-					else
-						message.Append("Missing fields ");
-
-					bool firstField = true;
-					for (let field in fieldsLeft)
-					{
-						if (!firstField)
-							message.Append(", ");
-						message.AppendF("'{}'", field);
-						firstField = false;
-					}
-
-					Error!(message);
-				}
-
-				Error!(new $"Missing field(s)");
-			}
+				return .Ok;
 
 			let keyPos = Reader.Position;
 			String key = scope .();
@@ -54,11 +42,15 @@ namespace Json.Internal
 
 			Try!(ConsumeChar(':'));
 			Try!(ConsumeWhitespace());
-			if (assign(key) case .Err)
+			if (deserialize(key) case .Err(let err))
 			{
-				if (Error == null)
+				switch (err)
+				{
+				case .UnknownField:
 					ErrorAt!(keyPos + 1, new $"'{key}' is not a valid member", Math.Max(key.Length, 1));
-				return .Err;
+				case .DeserializationError:
+					return .Err(err);
+				}
 			}
 
 			int expectedCommaPos = Reader.Position;
@@ -78,7 +70,7 @@ namespace Json.Internal
 		}
 
 		public Result<Dictionary<TKey, TValue>> DeserializeMap<TKey, TValue>()
-			where TKey : String
+			where TKey : ISerializableKey
 			where TValue : ISerializable
 		{
 			Dictionary<TKey, TValue> map = new .();
@@ -92,6 +84,9 @@ namespace Json.Internal
 			{
 				String key = scope .();
 				Try!(DeserializeString(key));
+				let parsedKey = Try!(TKey.Parse(key));
+				bool keyOk = false;
+				defer { if (!keyOk) Delete!(parsedKey); }
 
 				Try!(ConsumeChar(':'));
 				Try!(ConsumeWhitespace());
@@ -99,11 +94,11 @@ namespace Json.Internal
 				if (!((typeof(TValue).IsNullable || typeof(TValue).IsObject) && DeserializeNull()))
 				{
 					let value = Try!(TValue.Deserialize(this));
-					map.Add(new .(key), (.)value);
+					map.Add(parsedKey, (.)value);
 				}
 				else
 				{
-					map.Add(new .(key), (.)default);
+					map.Add(parsedKey, (.)default);
 				}
 
 				int expectedCommaPos = Reader.Position;
@@ -114,6 +109,8 @@ namespace Json.Internal
 					ErrorAt!(expectedCommaPos, new $"Missing comma");
 
 				Try!(ConsumeWhitespace());
+
+				keyOk = true;
 			}
 
 			Try!(ConsumeWhitespace());
@@ -245,7 +242,7 @@ namespace Json.Internal
 
 		public Result<double> DeserializeDouble()
 		{
-			return default;
+			return .Err;
 		}
 
 		public Result<DateTime> DeserializeDateTime()
@@ -415,17 +412,10 @@ namespace Json.Internal
 			ErrorAt!(-1, message, length);
 		}
 
-		mixin ErrorAt(int position, String message, int length = 1)
+		mixin ErrorAt(int position, String message, int length = 1, FieldDeserializeError err = FieldDeserializeError.DeserializationError)
 		{
-			SetError(new .(message, this, position, length));
-			return .Err;
-		}
-
-		public void SetError(DeserializeError error)
-		{
-			if (Error != null)
-				delete Error;
-			Error = error;
+			SetError(new .(message, this, length, position));
+			return .Err(err);
 		}
 
 		mixin AssertEOF(var result)
@@ -449,6 +439,34 @@ namespace Json.Internal
 				ErrorAt!(Reader.Position - 1, new $"Unexpected character '{next}', expected number");
 			next - '0'
 		}
+
+		mixin Try<T>(Result<T, FieldDeserializeError> result, FieldDeserializeError? err = null)
+		{
+			if (result case .Err(let originErr))
+				return .Err(err ?? originErr);
+			result.Get()
+		}
+
+		mixin Try<T>(Result<T> result, FieldDeserializeError err = FieldDeserializeError.DeserializationError)
+		{
+			if (result case .Err)
+				return .Err(err);
+			result.Get()
+		}
+
+		mixin Delete<T>(T value)
+			where T : IDisposable
+		{
+			value.Dispose();
+		}
+
+		mixin Delete<T>(T value)
+			where T : delete
+		{
+			delete value;
+		}
+
+		mixin Delete(var value) {}
 
 		mixin DeleteList<T>(List<T> list)
 			where T : delete

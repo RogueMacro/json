@@ -11,7 +11,7 @@ namespace Json.Internal
 		public StreamWriter Writer { get; set; }
 		public String NumberFormat { get; set; }
 
-		public SerializeOrder SerializeOrder { get => .InOrder; }
+		public SerializeOrder SerializeOrder { get => .PrimitivesArraysMaps; }
 
 		public bool Pretty;
 		private String _indent ~ if (_ != null) delete _;
@@ -27,7 +27,7 @@ namespace Json.Internal
 		private void Indent() => _indent.Append(_indentPerLevel);
 		private void UnIndent() => _indent.RemoveFromEnd(_indentPerLevel.Length);
 
-		public void SerializeMapStart(int size)
+		public void SerializeMapStart(int size, Type caller = null)
 		{
 			if (Pretty)
 				Indent();
@@ -45,14 +45,16 @@ namespace Json.Internal
 			Writer.Write("}");
 		}
 
-		public void SerializeMapEntry<T>(String key, T value, bool first)
-			where T : ISerializable
+		public void SerializeMapEntry<TKey, TValue>(TKey _key, TValue value, bool first)
+			where TKey : ISerializableKey
+			where TValue : ISerializable
 		{
 			if (!first)
 				Writer.Write(",");
 			if (Pretty)
 				Writer.Write("\n{}", _indent);
 
+			String key = _key.ToKey(.. scope .());
 			Writer.Write("\"{}\":{}", key, Pretty ? " " : "");
 			if (value != null)
 				value.Serialize(this);
